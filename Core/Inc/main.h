@@ -50,6 +50,8 @@ extern "C" {
 
 /* USER CODE END EM */
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -58,6 +60,16 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define RW_LCD_Pin GPIO_PIN_2
+#define RW_LCD_GPIO_Port GPIOE
+#define D0_LCD_Pin GPIO_PIN_3
+#define D0_LCD_GPIO_Port GPIOE
+#define D1_LCD_Pin GPIO_PIN_4
+#define D1_LCD_GPIO_Port GPIOE
+#define D2_LCD_Pin GPIO_PIN_5
+#define D2_LCD_GPIO_Port GPIOE
+#define D3_LCD_Pin GPIO_PIN_6
+#define D3_LCD_GPIO_Port GPIOE
 #define B1_Pin GPIO_PIN_13
 #define B1_GPIO_Port GPIOC
 #define MUX1_Pin GPIO_PIN_0
@@ -98,18 +110,24 @@ void Error_Handler(void);
 #define RMII_RXD1_GPIO_Port GPIOC
 #define LED_GREEN_Pin GPIO_PIN_0
 #define LED_GREEN_GPIO_Port GPIOB
-#define LIGHT_CONTROL_Pin GPIO_PIN_1
-#define LIGHT_CONTROL_GPIO_Port GPIOB
-#define SWITCH_BOX_Pin GPIO_PIN_2
-#define SWITCH_BOX_GPIO_Port GPIOB
+#define COMP1_INP_LINE1_VIDEO_Pin GPIO_PIN_2
+#define COMP1_INP_LINE1_VIDEO_GPIO_Port GPIOB
 #define S3_Pin GPIO_PIN_11
 #define S3_GPIO_Port GPIOF
-#define ROW2_Pin GPIO_PIN_10
-#define ROW2_GPIO_Port GPIOB
-#define ROW3_Pin GPIO_PIN_11
-#define ROW3_GPIO_Port GPIOB
-#define ROW4_Pin GPIO_PIN_12
-#define ROW4_GPIO_Port GPIOB
+#define RS_LCD_Pin GPIO_PIN_7
+#define RS_LCD_GPIO_Port GPIOE
+#define LINE_ST_Pin GPIO_PIN_8
+#define LINE_ST_GPIO_Port GPIOE
+#define CONTAINER_DETECT_Pin GPIO_PIN_9
+#define CONTAINER_DETECT_GPIO_Port GPIOE
+#define COMP2_INP_LINE2_VIDEO_Pin GPIO_PIN_11
+#define COMP2_INP_LINE2_VIDEO_GPIO_Port GPIOE
+#define LINE1_EOS_Pin GPIO_PIN_14
+#define LINE1_EOS_GPIO_Port GPIOE
+#define LINE2_EOS_Pin GPIO_PIN_15
+#define LINE2_EOS_GPIO_Port GPIOE
+#define LIGHT_CONTROL_Pin GPIO_PIN_10
+#define LIGHT_CONTROL_GPIO_Port GPIOB
 #define RMII_TXD1_Pin GPIO_PIN_13
 #define RMII_TXD1_GPIO_Port GPIOB
 #define LED_RED_Pin GPIO_PIN_14
@@ -134,37 +152,69 @@ void Error_Handler(void);
 #define SWDIO_GPIO_Port GPIOA
 #define SWCLK_Pin GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
-#define DATA0_Pin GPIO_PIN_0
-#define DATA0_GPIO_Port GPIOD
-#define DATA1_Pin GPIO_PIN_1
-#define DATA1_GPIO_Port GPIOD
-#define DATA2_Pin GPIO_PIN_2
-#define DATA2_GPIO_Port GPIOD
-#define DATA3_Pin GPIO_PIN_3
-#define DATA3_GPIO_Port GPIOD
-#define RS_Pin GPIO_PIN_4
-#define RS_GPIO_Port GPIOD
-#define RW_Pin GPIO_PIN_5
-#define RW_GPIO_Port GPIOD
+#define ROW0_Pin GPIO_PIN_0
+#define ROW0_GPIO_Port GPIOD
+#define ROW1_Pin GPIO_PIN_1
+#define ROW1_GPIO_Port GPIOD
+#define ROW2_Pin GPIO_PIN_2
+#define ROW2_GPIO_Port GPIOD
+#define ROW3_Pin GPIO_PIN_3
+#define ROW3_GPIO_Port GPIOD
+#define COL0_Pin GPIO_PIN_4
+#define COL0_GPIO_Port GPIOD
+#define COL1_Pin GPIO_PIN_5
+#define COL1_GPIO_Port GPIOD
+#define COL2_Pin GPIO_PIN_6
+#define COL2_GPIO_Port GPIOD
+#define COL3_Pin GPIO_PIN_7
+#define COL3_GPIO_Port GPIOD
 #define RMII_TX_EN_Pin GPIO_PIN_11
 #define RMII_TX_EN_GPIO_Port GPIOG
 #define RMII_TXD0_Pin GPIO_PIN_13
 #define RMII_TXD0_GPIO_Port GPIOG
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
-#define COLUMN1_Pin GPIO_PIN_5
-#define COLUMN1_GPIO_Port GPIOB
-#define COLUMN2_Pin GPIO_PIN_6
-#define COLUMN2_GPIO_Port GPIOB
-#define COLUMN3_Pin GPIO_PIN_7
-#define COLUMN3_GPIO_Port GPIOB
-#define COLUMN4_Pin GPIO_PIN_8
-#define COLUMN4_GPIO_Port GPIOB
-#define ROW1_Pin GPIO_PIN_9
-#define ROW1_GPIO_Port GPIOB
+#define TIM17_CH1_LINE_CLK_Pin GPIO_PIN_9
+#define TIM17_CH1_LINE_CLK_GPIO_Port GPIOB
+#define E_LCD_Pin GPIO_PIN_0
+#define E_LCD_GPIO_Port GPIOE
 #define LED_YELLOW_Pin GPIO_PIN_1
 #define LED_YELLOW_GPIO_Port GPIOE
 /* USER CODE BEGIN Private defines */
+
+#define KEY_GPIO_Port GPIOD
+#define LCD_GPIO_Port GPIOE
+#define LCD_GPIO_DATA_Pins (D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin)
+
+#define LCD_SET_DATA_LINE(x)  (	LCD_GPIO_Port->ORD &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);\
+								LCD_GPIO_Port->ORD |= (x << D0_LCD_Pin); )
+
+
+#define KEY_1 		((uint16_t)0x0001)
+#define KEY_2		((uint16_t)0x0002)
+#define KEY_3		((uint16_t)0x0004)
+#define KEY_A		((uint16_t)0x0008)
+#define KEY_4		((uint16_t)0x0010)
+#define KEY_5		((uint16_t)0x0020)
+#define KEY_6		((uint16_t)0x0040)
+#define KEY_B		((uint16_t)0x0080)
+#define KEY_7		((uint16_t)0x0100)
+#define KEY_8		((uint16_t)0x0200)
+#define KEY_9		((uint16_t)0x0400)
+#define KEY_C		((uint16_t)0x0800)
+#define KEY_STAR	((uint16_t)0x1000)
+#define KEY_0		((uint16_t)0x2000)
+#define KEY_GRID	((uint16_t)0x4000)
+
+typedef struct
+{
+	uint16_t area;
+	uint8_t cont;
+	uint8_t sl;
+} line_object_t;
+
+#define NUM_PICES_PERIOD 8 // must equal power 2,  = 8, 16, 32, 64 ...
+#define MIN_PICE_PERIOD 30
 
 /* USER CODE END Private defines */
 

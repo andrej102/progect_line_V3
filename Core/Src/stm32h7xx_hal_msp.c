@@ -28,6 +28,8 @@ extern DMA_HandleTypeDef hdma_tim2_up;
 
 extern DMA_HandleTypeDef hdma_tim2_ch2;
 
+extern DMA_HandleTypeDef hdma_tim17_ch1;
+
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
@@ -61,7 +63,9 @@ extern DMA_HandleTypeDef hdma_tim2_ch2;
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
-/**
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                    /**
   * Initializes the Global MSP.
   */
 void HAL_MspInit(void)
@@ -79,6 +83,144 @@ void HAL_MspInit(void)
   /* USER CODE BEGIN MspInit 1 */
 
   /* USER CODE END MspInit 1 */
+}
+
+static uint32_t HAL_RCC_COMP12_CLK_ENABLED=0;
+
+/**
+* @brief COMP MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hcomp: COMP handle pointer
+* @retval None
+*/
+void HAL_COMP_MspInit(COMP_HandleTypeDef* hcomp)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  if(hcomp->Instance==COMP1)
+  {
+  /* USER CODE BEGIN COMP1_MspInit 0 */
+
+  /* USER CODE END COMP1_MspInit 0 */
+    /* Peripheral clock enable */
+    HAL_RCC_COMP12_CLK_ENABLED++;
+    if(HAL_RCC_COMP12_CLK_ENABLED==1){
+      __HAL_RCC_COMP12_CLK_ENABLE();
+    }
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOE_CLK_ENABLE();
+    /**COMP1 GPIO Configuration
+    PB1     ------> COMP1_INM
+    PB2     ------> COMP1_INP
+    PE12     ------> COMP1_OUT
+    */
+    GPIO_InitStruct.Pin = GPIO_PIN_1|COMP1_INP_LINE1_VIDEO_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = GPIO_PIN_12;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF13_COMP1;
+    HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN COMP1_MspInit 1 */
+
+  /* USER CODE END COMP1_MspInit 1 */
+  }
+  else if(hcomp->Instance==COMP2)
+  {
+  /* USER CODE BEGIN COMP2_MspInit 0 */
+
+  /* USER CODE END COMP2_MspInit 0 */
+    /* Peripheral clock enable */
+    HAL_RCC_COMP12_CLK_ENABLED++;
+    if(HAL_RCC_COMP12_CLK_ENABLED==1){
+      __HAL_RCC_COMP12_CLK_ENABLE();
+    }
+
+    __HAL_RCC_GPIOE_CLK_ENABLE();
+    /**COMP2 GPIO Configuration
+    PE10     ------> COMP2_INM
+    PE11     ------> COMP2_INP
+    PE13     ------> COMP2_OUT
+    */
+    GPIO_InitStruct.Pin = GPIO_PIN_10|COMP2_INP_LINE2_VIDEO_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = GPIO_PIN_13;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF13_COMP2;
+    HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN COMP2_MspInit 1 */
+
+  /* USER CODE END COMP2_MspInit 1 */
+  }
+
+}
+
+/**
+* @brief COMP MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hcomp: COMP handle pointer
+* @retval None
+*/
+void HAL_COMP_MspDeInit(COMP_HandleTypeDef* hcomp)
+{
+  if(hcomp->Instance==COMP1)
+  {
+  /* USER CODE BEGIN COMP1_MspDeInit 0 */
+
+  /* USER CODE END COMP1_MspDeInit 0 */
+    /* Peripheral clock disable */
+    HAL_RCC_COMP12_CLK_ENABLED--;
+    if(HAL_RCC_COMP12_CLK_ENABLED==0){
+      __HAL_RCC_COMP12_CLK_DISABLE();
+    }
+
+    /**COMP1 GPIO Configuration
+    PB1     ------> COMP1_INM
+    PB2     ------> COMP1_INP
+    PE12     ------> COMP1_OUT
+    */
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1|COMP1_INP_LINE1_VIDEO_Pin);
+
+    HAL_GPIO_DeInit(GPIOE, GPIO_PIN_12);
+
+  /* USER CODE BEGIN COMP1_MspDeInit 1 */
+
+  /* USER CODE END COMP1_MspDeInit 1 */
+  }
+  else if(hcomp->Instance==COMP2)
+  {
+  /* USER CODE BEGIN COMP2_MspDeInit 0 */
+
+  /* USER CODE END COMP2_MspDeInit 0 */
+    /* Peripheral clock disable */
+    HAL_RCC_COMP12_CLK_ENABLED--;
+    if(HAL_RCC_COMP12_CLK_ENABLED==0){
+      __HAL_RCC_COMP12_CLK_DISABLE();
+    }
+
+    /**COMP2 GPIO Configuration
+    PE10     ------> COMP2_INM
+    PE11     ------> COMP2_INP
+    PE13     ------> COMP2_OUT
+    */
+    HAL_GPIO_DeInit(GPIOE, GPIO_PIN_10|COMP2_INP_LINE2_VIDEO_Pin|GPIO_PIN_13);
+
+  /* USER CODE BEGIN COMP2_MspDeInit 1 */
+
+  /* USER CODE END COMP2_MspDeInit 1 */
+  }
+
 }
 
 /**
@@ -265,9 +407,66 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
 
   /* USER CODE END TIM3_MspInit 1 */
   }
+  else if(htim_base->Instance==TIM17)
+  {
+  /* USER CODE BEGIN TIM17_MspInit 0 */
+
+  /* USER CODE END TIM17_MspInit 0 */
+    /* Peripheral clock enable */
+    __HAL_RCC_TIM17_CLK_ENABLE();
+
+    /* TIM17 DMA Init */
+    /* TIM17_CH1 Init */
+    hdma_tim17_ch1.Instance = DMA1_Stream0;
+    hdma_tim17_ch1.Init.Request = DMA_REQUEST_TIM17_CH1;
+    hdma_tim17_ch1.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_tim17_ch1.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_tim17_ch1.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_tim17_ch1.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_tim17_ch1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+    hdma_tim17_ch1.Init.Mode = DMA_NORMAL;
+    hdma_tim17_ch1.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_tim17_ch1.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_tim17_ch1) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(htim_base,hdma[TIM_DMA_ID_CC1],hdma_tim17_ch1);
+
+  /* USER CODE BEGIN TIM17_MspInit 1 */
+
+  /* USER CODE END TIM17_MspInit 1 */
+  }
 
 }
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  if(htim->Instance==TIM17)
+  {
+  /* USER CODE BEGIN TIM17_MspPostInit 0 */
+
+  /* USER CODE END TIM17_MspPostInit 0 */
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    /**TIM17 GPIO Configuration
+    PB9     ------> TIM17_CH1
+    */
+    GPIO_InitStruct.Pin = TIM17_CH1_LINE_CLK_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF1_TIM17;
+    HAL_GPIO_Init(TIM17_CH1_LINE_CLK_GPIO_Port, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN TIM17_MspPostInit 1 */
+
+  /* USER CODE END TIM17_MspPostInit 1 */
+  }
+
+}
 /**
 * @brief TIM_Base MSP De-Initialization
 * This function freeze the hardware resources used in this example
@@ -304,6 +503,20 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
   /* USER CODE BEGIN TIM3_MspDeInit 1 */
 
   /* USER CODE END TIM3_MspDeInit 1 */
+  }
+  else if(htim_base->Instance==TIM17)
+  {
+  /* USER CODE BEGIN TIM17_MspDeInit 0 */
+
+  /* USER CODE END TIM17_MspDeInit 0 */
+    /* Peripheral clock disable */
+    __HAL_RCC_TIM17_CLK_DISABLE();
+
+    /* TIM17 DMA DeInit */
+    HAL_DMA_DeInit(htim_base->hdma[TIM_DMA_ID_CC1]);
+  /* USER CODE BEGIN TIM17_MspDeInit 1 */
+
+  /* USER CODE END TIM17_MspDeInit 1 */
   }
 
 }
