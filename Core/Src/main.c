@@ -95,7 +95,7 @@ UART_HandleTypeDef huart3;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -112,28 +112,28 @@ osEventFlagsId_t event_group_2_id = NULL;
 osThreadId_t lcdTaskHandle;
 const osThreadAttr_t lcdTask_attributes = {
   .name = "lcdTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
 osThreadId_t keyboardTaskHandle;
 const osThreadAttr_t keyboardTask_attributes = {
   .name = "keyboardTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
 osThreadId_t  container_detectTaskHandle;
 const osThreadAttr_t container_detectTask_attributes = {
   .name = "container_detectTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
 osThreadId_t scanerTaskHandle;
 const osThreadAttr_t scanerTask_attributes = {
   .name = "scanerTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -309,7 +309,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  osDelay(100);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -905,7 +905,7 @@ void StartLCDTask(void *argument)
 
 	for(;;)
 	{
-		osEventFlagsWait(event_group_1_id, FLAG_REQUEST_LCD_UPDATE, osFlagsWaitAny, osWaitForever);
+	//	osEventFlagsWait(event_group_1_id, FLAG_REQUEST_LCD_UPDATE, osFlagsWaitAny, osWaitForever);
 
 		CommandLCD(0x01);   		// clear LCD pointer to 0 adsress SDRAM
 		osDelay(3);
@@ -964,8 +964,10 @@ void StartKeyboardTask(void *argument)
 	  for(i=0; i<4; i++)
 	  {
 		  KEY_GPIO_Port->BSRR |= (ROW0_Pin << i); // set row
+		  HAL_Delay(1);
 		  key_current_state |= ( ((KEY_GPIO_Port->IDR & 0x000000f0) >> 4) << (i * 4) );
 		  KEY_GPIO_Port->BSRR |= (ROW0_Pin << (i + 16)); // clear row
+		  HAL_Delay(1);
 	  }
 
 	  for (i=0; i<16; i++)
@@ -974,26 +976,113 @@ void StartKeyboardTask(void *argument)
 		  {
 			  if (key_previous_state & (1 << i))
 			  {
-				  key_current_state |= (1 << i);
+				  key_current_status |= (1 << i);
 			  }
 		  }
 		  else
 		  {
 			  if (!(key_previous_state & (1 << i)))
 			  {
-				  key_current_state &= ~(1 << i);
+				  key_current_status &= ~(1 << i);
 			  }
 		  }
 
-		  if ( (key_current_status & (1 << i)) && (key_previous_status & (1 << i)) )
+		  if ( (key_current_status & (1 << i)) && (!(key_previous_status & (1 << i))) )
 		  {
 			  key_event_status |= (1 << i);
 		  }
 	  }
 
+
 	  key_previous_state = key_current_state;
 
+	  key_previous_status = key_current_status;
+
 	  // defining button events
+
+	  if (key_event_status & KEY_1)
+	  {
+		  key_event_status &= ~KEY_1;
+
+		  numObjects = 1;
+	  }
+
+	  if (key_event_status & KEY_2)
+	  {
+		  key_event_status &= ~KEY_2;
+
+		  numObjects = 2;
+	  }
+
+	  if (key_event_status & KEY_3)
+	  {
+		  key_event_status &= ~KEY_3;
+
+		  numObjects = 3;
+	  }
+
+	  if (key_event_status & KEY_4)
+	  {
+		  key_event_status &= ~KEY_4;
+
+		  numObjects = 4;
+	  }
+
+	  if (key_event_status & KEY_5)
+	  {
+		  key_event_status &= ~KEY_5;
+
+		  numObjects = 5;
+	  }
+
+	  if (key_event_status & KEY_6)
+	  {
+		  key_event_status &= ~KEY_6;
+
+		  numObjects = 6;
+	  }
+
+	  if (key_event_status & KEY_7)
+	  {
+		  key_event_status &= ~KEY_7;
+
+		  numObjects = 7;
+	  }
+
+	  if (key_event_status & KEY_8)
+	  {
+		  key_event_status &= ~KEY_8;
+
+		  numObjects = 8;
+	  }
+
+	  if (key_event_status & KEY_9)
+	  {
+		  key_event_status &= ~KEY_9;
+
+		  numObjects = 9;
+	  }
+
+	  if (key_event_status & KEY_0)
+	  {
+		  key_event_status &= ~KEY_0;
+
+		  numObjects = 10;
+	  }
+
+	  if (key_event_status & KEY_A)
+	  {
+		  key_event_status &= ~KEY_A;
+
+		  numObjects = 11;
+	  }
+
+	  if (key_event_status & KEY_B)
+	  {
+		  key_event_status &= ~KEY_B;
+
+		  numObjects = 12;
+	  }
 
 	  // C key
 
@@ -1148,12 +1237,12 @@ void StartScanerTask(void *argument)
 	  			}
 	  		}
 
-	  		// анализируем связанность объектов текущей линии с собъектами предыдущей и ставим и расставляем соответствующие признаки
+	  		// анализируем �?в�?занно�?ть объектов текущей линии �? �?объектами предыдущей и �?тавим и ра�?�?тавл�?ем �?оответ�?твующие признаки
 
 	  		last_line[j] = current_line[j];
 	  	}
 
-	  	// проверяем есть ли закончившиеся объекты по предыдущей линии
+	  	// провер�?ем е�?ть ли закончившие�?�? объекты по предыдущей линии
 
 	  	for (j=0; j < NumObjectsInLastLine; j++)
 	  	{
@@ -1240,7 +1329,7 @@ void StartScanerTask(void *argument)
 	  		}
 	  	}
 
-	  	// переносим объекты текущей линии в предыдущую
+	  	// перено�?им объекты текущей линии в предыдущую
 
 	  	for (j=0; j < NumObjectsInCurrentLine; j++)
 	  	{
@@ -1253,7 +1342,7 @@ void StartScanerTask(void *argument)
 
 	  	NumObjectsInLastLine = NumObjectsInCurrentLine;
 
-	  	// Меняем буфер который надо заполнять
+	  	// Мен�?ем буфер который надо заполн�?ть
 
   }
 
@@ -1276,6 +1365,8 @@ void Clear_Counter (void)
 	{
 		pices_time[p] = 0;
 	}
+
+	osEventFlagsSet(event_group_1_id, FLAG_REQUEST_LCD_UPDATE);
 }
 
 /*
@@ -1288,7 +1379,9 @@ void TuningLCD (void)
 
 	HAL_Delay(100);
 	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	LCD_GPIO_Port->ODR |= (D0_LCD_Pin | D1_LCD_Pin); // write 0x03
+	HAL_Delay(1);
+	LCD_GPIO_Port->ODR |= ( 0x03 << D0_LCD_Pin); // write 0x03
+	HAL_Delay(1);
 	HAL_Delay(30);
 	Nybble(); 			//command 0x30 = Wake up
 	HAL_Delay(10);
@@ -1297,12 +1390,18 @@ void TuningLCD (void)
 	Nybble(); 			//command 0x30 = Wake up #3
 	HAL_Delay(10); 		//can check busy flag now instead of delay
 	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	GPIOC->ODR |= D1_LCD_Pin; // write 0x02
+	HAL_Delay(1);
+	LCD_GPIO_Port->ODR |= ( 0x02 << D0_LCD_Pin); // write 0x02
+	HAL_Delay(1);
 	Nybble(); 			//Function set: 4-bit interface
 	CommandLCD(0x28); 	//Function set: 4-bit/2-line
+	HAL_Delay(10);
 	CommandLCD(0x10); 	//Set cursor
+	HAL_Delay(10);
 	CommandLCD(0x0F); 	//Display ON
+	HAL_Delay(10);
 	CommandLCD(0x06); 	//Entry Mode set
+	HAL_Delay(10);
 }
 
 /*
@@ -1313,12 +1412,18 @@ void CommandLCD(uint8_t i)
 {
 
 	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	LCD_GPIO_Port->ODR |= ( (i>>4) << D0_LCD_Pin);	// set lower bits
+	HAL_Delay(1);
+	LCD_GPIO_Port->ODR |=  ( (i>>4) << D0_LCD_Pin) ;	// set lower bits
+	HAL_Delay(1);
 	RS_LCD_GPIO_Port->BSRR |= (RS_LCD_Pin << 16); // RS low - command
+	HAL_Delay(1);
 	RW_LCD_GPIO_Port->BSRR |= ( RW_LCD_Pin << 16); //R/W low
+	HAL_Delay(1);
 	Nybble(); //Send lower 4 bits
 	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	LCD_GPIO_Port->ODR |= ( i << D0_LCD_Pin); // set upper bits
+	HAL_Delay(1);
+	LCD_GPIO_Port->ODR |= ( (i & 0x0f) << D0_LCD_Pin); // set upper bits
+	HAL_Delay(1);
 	Nybble(); //Send upper 4 bits
 }
 
@@ -1329,12 +1434,18 @@ void CommandLCD(uint8_t i)
 void WriteLCD(char i)
 {
 	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
+	HAL_Delay(1);
 	LCD_GPIO_Port->ODR |= ( (i>>4) << D0_LCD_Pin);	// set lower bits
+	HAL_Delay(1);
 	RS_LCD_GPIO_Port->BSRR |= RS_LCD_Pin; // RS high - data
+	HAL_Delay(1);
 	RW_LCD_GPIO_Port->BSRR |= ( RW_LCD_Pin << 16); // R/W low
+	HAL_Delay(1);
 	Nybble(); //Clock lower 4 bits
 	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	LCD_GPIO_Port->ODR |= ( i << D0_LCD_Pin); // set upper bits
+	HAL_Delay(1);
+	LCD_GPIO_Port->ODR |= ( (i & 0x0f) << D0_LCD_Pin); // set upper bits
+	HAL_Delay(1);
 	Nybble(); //Send upper 4 bits
 }
 
@@ -1346,7 +1457,7 @@ void Nybble(void)
 {
 	E_LCD_GPIO_Port->BSRR |= E_LCD_Pin;						// E = high
 
-	for (uint8_t i=0; i==140; i++)
+	for (uint8_t i=0; i== 140; i++)
 	{
 		asm ("nop");
 	}
