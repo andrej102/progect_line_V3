@@ -211,6 +211,10 @@ void CommandLCD(uint8_t i);
 void TuningLCD (void);
 void Clear_Counter (void);
 
+void ShowTextOnLCD (const char *text);
+void ShowNumberOnLCD (uint32_t number, uint16_t num_areas);
+
+void Delay_us(uint32_t us);
 
 /* USER CODE END PFP */
 
@@ -235,6 +239,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+
+  ShowTextOnLCD("2.5    0");
 
   /* USER CODE END Init */
 
@@ -908,23 +914,23 @@ void StartLCDTask(void *argument)
 	//	osEventFlagsWait(event_group_1_id, FLAG_REQUEST_LCD_UPDATE, osFlagsWaitAny, osWaitForever);
 
 		CommandLCD(0x01);   		// clear LCD pointer to 0 adsress SDRAM
-		osDelay(3);
+		osDelay(2);
 		WriteLCD(PositionLCD[0]);
-		osDelay(2);
+		osDelay(1);//Delay_us(1000);//osDelay(2);
 		WriteLCD(PositionLCD[1]);
-		osDelay(2);
+		osDelay(1);//Delay_us(1000);//osDelay(2);
 		WriteLCD(PositionLCD[2]);
-		osDelay(2);
+		osDelay(1);//Delay_us(1000);//osDelay(2);
 		WriteLCD(PositionLCD[3]);
-		osDelay(2);
+		osDelay(1);//Delay_us(1000);//osDelay(2);
 		WriteLCD(PositionLCD[4]);
-		osDelay(2);
+		osDelay(1);//Delay_us(1000);//osDelay(2);
 		WriteLCD(PositionLCD[5]);
-		osDelay(2);
+		osDelay(1);//Delay_us(1000);//osDelay(2);
 		WriteLCD(PositionLCD[6]);
-		osDelay(2);
+		osDelay(1);//Delay_us(1000);//osDelay(2);
 		WriteLCD(PositionLCD[7]);
-		osDelay(2);
+		osDelay(250);
 	}
 
 }
@@ -960,6 +966,8 @@ void StartKeyboardTask(void *argument)
 	   *
 	   *				D#0*C987B654A321
 	   */
+
+	  key_current_state = 0;
 
 	  for(i=0; i<4; i++)
 	  {
@@ -1005,6 +1013,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_1;
 
 		  numObjects = 1;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_2)
@@ -1012,6 +1021,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_2;
 
 		  numObjects = 2;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_3)
@@ -1019,6 +1029,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_3;
 
 		  numObjects = 3;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_4)
@@ -1026,6 +1037,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_4;
 
 		  numObjects = 4;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_5)
@@ -1033,6 +1045,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_5;
 
 		  numObjects = 5;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_6)
@@ -1040,6 +1053,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_6;
 
 		  numObjects = 6;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_7)
@@ -1047,6 +1061,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_7;
 
 		  numObjects = 7;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_8)
@@ -1054,6 +1069,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_8;
 
 		  numObjects = 8;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_9)
@@ -1061,6 +1077,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_9;
 
 		  numObjects = 9;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_0)
@@ -1068,6 +1085,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_0;
 
 		  numObjects = 10;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_A)
@@ -1075,6 +1093,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_A;
 
 		  numObjects = 11;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  if (key_event_status & KEY_B)
@@ -1082,6 +1101,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_B;
 
 		  numObjects = 12;
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  // C key
@@ -1091,6 +1111,7 @@ void StartKeyboardTask(void *argument)
 		  key_event_status &= ~KEY_C;
 
 		  Clear_Counter();
+		  ShowNumberOnLCD((uint32_t)numObjects, 0);
 	  }
 
 	  // SRAT key
@@ -1377,31 +1398,29 @@ void TuningLCD (void)
 {
 	//4-bit Initialization:
 
-	HAL_Delay(100);
-	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	HAL_Delay(1);
-	LCD_GPIO_Port->ODR |= ( 0x03 << D0_LCD_Pin); // write 0x03
-	HAL_Delay(1);
-	HAL_Delay(30);
+	HAL_Delay(40);
+	LCD_GPIO_Port->ODR &= ~(LCD_GPIO_DATA_Pins);
+	LCD_GPIO_Port->ODR |= ( 0x03 << 3); // write 0x03
+	HAL_Delay(5);
 	Nybble(); 			//command 0x30 = Wake up
-	HAL_Delay(10);
+	HAL_Delay(1);
 	Nybble(); 			//command 0x30 = Wake up #2
-	HAL_Delay(10);
+	HAL_Delay(1);
 	Nybble(); 			//command 0x30 = Wake up #3
 	HAL_Delay(10); 		//can check busy flag now instead of delay
-	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	HAL_Delay(1);
-	LCD_GPIO_Port->ODR |= ( 0x02 << D0_LCD_Pin); // write 0x02
+	LCD_GPIO_Port->ODR &= ~(LCD_GPIO_DATA_Pins);
+	LCD_GPIO_Port->ODR |= ( 0x02 << 3); // write 0x02
 	HAL_Delay(1);
 	Nybble(); 			//Function set: 4-bit interface
+	HAL_Delay(1); 		//can check busy flag now instead of delay
 	CommandLCD(0x28); 	//Function set: 4-bit/2-line
-	HAL_Delay(10);
+	HAL_Delay(1);
 	CommandLCD(0x10); 	//Set cursor
-	HAL_Delay(10);
+	HAL_Delay(1);
 	CommandLCD(0x0F); 	//Display ON
-	HAL_Delay(10);
+	HAL_Delay(1);
 	CommandLCD(0x06); 	//Entry Mode set
-	HAL_Delay(10);
+	HAL_Delay(1);
 }
 
 /*
@@ -1411,20 +1430,18 @@ void TuningLCD (void)
 void CommandLCD(uint8_t i)
 {
 
-	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	HAL_Delay(1);
-	LCD_GPIO_Port->ODR |=  ( (i>>4) << D0_LCD_Pin) ;	// set lower bits
-	HAL_Delay(1);
+	LCD_GPIO_Port->ODR &= ~(LCD_GPIO_DATA_Pins);
+	LCD_GPIO_Port->ODR |=  ( (i>>4) << 3) ;	// set lower bits
 	RS_LCD_GPIO_Port->BSRR |= (RS_LCD_Pin << 16); // RS low - command
-	HAL_Delay(1);
 	RW_LCD_GPIO_Port->BSRR |= ( RW_LCD_Pin << 16); //R/W low
-	HAL_Delay(1);
+	Delay_us(1);
 	Nybble(); //Send lower 4 bits
-	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	HAL_Delay(1);
-	LCD_GPIO_Port->ODR |= ( (i & 0x0f) << D0_LCD_Pin); // set upper bits
-	HAL_Delay(1);
+	Delay_us(1);
+	LCD_GPIO_Port->ODR &= ~(LCD_GPIO_DATA_Pins);
+	LCD_GPIO_Port->ODR |= ( (i & 0x0f) << 3); // set upper bits
+	Delay_us(1);
 	Nybble(); //Send upper 4 bits
+	Delay_us(1);
 }
 
 /*
@@ -1433,20 +1450,18 @@ void CommandLCD(uint8_t i)
 
 void WriteLCD(char i)
 {
-	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	HAL_Delay(1);
-	LCD_GPIO_Port->ODR |= ( (i>>4) << D0_LCD_Pin);	// set lower bits
-	HAL_Delay(1);
+	LCD_GPIO_Port->ODR &= ~(LCD_GPIO_DATA_Pins);
+	LCD_GPIO_Port->ODR |= ( (i>>4) << 3);	// set lower bits
 	RS_LCD_GPIO_Port->BSRR |= RS_LCD_Pin; // RS high - data
-	HAL_Delay(1);
 	RW_LCD_GPIO_Port->BSRR |= ( RW_LCD_Pin << 16); // R/W low
-	HAL_Delay(1);
+	Delay_us(1);
 	Nybble(); //Clock lower 4 bits
-	LCD_GPIO_Port->ODR &= ~(D0_LCD_Pin | D1_LCD_Pin | D2_LCD_Pin | D3_LCD_Pin);
-	HAL_Delay(1);
-	LCD_GPIO_Port->ODR |= ( (i & 0x0f) << D0_LCD_Pin); // set upper bits
-	HAL_Delay(1);
+	Delay_us(1);
+	LCD_GPIO_Port->ODR &= ~(LCD_GPIO_DATA_Pins);
+	LCD_GPIO_Port->ODR |= ( (i & 0x0f) << 3); // set upper bits
+	Delay_us(1);
 	Nybble(); //Send upper 4 bits
+	Delay_us(1);
 }
 
 /*
@@ -1457,12 +1472,26 @@ void Nybble(void)
 {
 	E_LCD_GPIO_Port->BSRR |= E_LCD_Pin;						// E = high
 
-	for (uint8_t i=0; i== 140; i++)
+	for (uint8_t i=0; i== 55; i++) //140
 	{
 		asm ("nop");
 	}
 
 	E_LCD_GPIO_Port->BSRR |= (E_LCD_Pin << 16);				// E = low
+}
+
+/*
+ *
+ */
+
+void Delay_us(uint32_t us)
+{
+	uint32_t delay_time = (550*us)/3;
+
+	for (uint32_t i=0; i== delay_time; i++)
+	{
+		asm ("nop");
+	}
 }
 
 /*
