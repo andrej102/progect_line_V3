@@ -38,12 +38,15 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define LINE_SIZE 96
-#define LINE_SIZE_EXP 48
-#define MUX_SIZE 16
-
 #define NUM_PICES_PERIOD 8 // must equal power 2,  = 8, 16, 32, 64 ...
 #define MIN_PICE_PERIOD 30
+
+
+#define LINE_DUMMY 20
+#define LINE_SIZE 1536
+#define LINE_SIZE_WITH_DUMMY 1556
+
+#define MUX_SIZE 16
 
 /* USER CODE END PD */
 
@@ -134,10 +137,6 @@ const osThreadAttr_t scanerTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
-#define LINE_SIZE 96
-#define LINE_SIZE_EXP 48
-#define MUX_SIZE 16
-
 // common
 
 uint32_t Start_timer = 0;
@@ -153,7 +152,7 @@ const uint32_t mux_control_data[MUX_SIZE] = {0x00000002, 0x00000004, 0x00000006,
 uint32_t comp_out_data[MUX_SIZE];
 uint8_t  comp_out_data_busy = 0;
 
-uint32_t BufferCOMP1[LINE_SIZE], BufferCOMP2[LINE_SIZE];
+uint32_t BufferCOMP1[LINE_SIZE_WITH_DUMMY], BufferCOMP2[LINE_SIZE_WITH_DUMMY];
 uint8_t last_line[LINE_SIZE], NumObjectsInLastLine = 0;
 uint16_t CurrentFrequencyFrame = 112;
 uint32_t LCD_show_count_counter = 0;
@@ -175,9 +174,6 @@ uint8_t PositionLCD[8];
 uint32_t pices_time[NUM_PICES_PERIOD];
 uint32_t system_time = 0;
 uint32_t pice_period = 0;
-
-
-
 
 /* USER CODE END PV */
 
@@ -211,6 +207,8 @@ void ShowTextOnLCD (const char *text);
 void ShowNumberOnLCD (uint32_t number, uint16_t num_areas);
 
 void Delay_us(uint32_t us);
+
+void DMA1_Stream0_Complete_Callback(DMA_HandleTypeDef *hdma_tim17_ch1);
 
 /* USER CODE END PFP */
 
@@ -293,6 +291,11 @@ int main(void)
   keyboardTaskHandle = osThreadNew(StartKeyboardTask, NULL, &keyboardTask_attributes);
   container_detectTaskHandle = osThreadNew(StartContainerDetectTask, NULL, &container_detectTask_attributes);
   scanerTaskHandle = osThreadNew(StartScanerTask, NULL, &scanerTask_attributes);
+
+
+  HAL_DMA_RegisterCallback(&hdma_tim17_ch1, HAL_DMA_XFER_CPLT_CB_ID, DMA1_Stream0_Complete_Callback);
+  HAL_COMP_Start(&hcomp1);
+  HAL_TIM_PWM_Start_IT (&htim3, TIM_CHANNEL_1);
 
   /* USER CODE END RTOS_THREADS */
 
@@ -619,6 +622,10 @@ static void MX_TIM17_Init(void)
   }
   /* USER CODE BEGIN TIM17_Init 2 */
 
+//  TIM17->DIER |= TIM_DIER_UDE;    // Update DMA request enable
+
+
+
   /* USER CODE END TIM17_Init 2 */
   HAL_TIM_MspPostInit(&htim17);
 
@@ -853,7 +860,26 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/*
+void DMATuning(void)
+{
+    // for change addresses DMA chanal must disable !!!
+	while (DMA1_Stream0->CR & DMA_SxCR_EN)
+	{
+		DMA1_Stream0->CR &=~ DMA_SxCR_EN;
+	}
+	DMA1->LISR = 0;
+	DMA1->HISR = 0;
+	DMA1_Stream0->PAR = (uint32_t)&COMP12->SR;
+	DMA1_Stream0->M0AR = (uint32_t)&BufferCOMP1[0];
+	//DMA1_Stream0->M1AR = (uint32_t)&BufferCOMP2[0];
+	DMA1_Stream0->NDTR = LINE_SIZE_WITH_DUMMY;
 
+	DMAMUX1
+
+	DMA1_Stream0->CR |= DMA_SxCR_TCIE | DMA_SxCR_MINC |DMA_SxCR_PL_0 | DMA_SxCR_PL_1 | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 | DMA_SxCR_EN;
+}
+*/
 /**
   * @brief  Function implementing the LCDTask thread.
   * @param  argument: Not used
@@ -1151,29 +1177,18 @@ void StartScanerTask(void *argument)
 	uint8_t lastbit = 0;
 	line_object_t objects_current_line[LINE_SIZE / 2];
 	line_object_t *p_objects_current_line[LINE_SIZE /2];
-	uint32_t *pbuffer;
-
 
 	/* Infinite loop */
 	for(;;)
 	{
-		osEventFlagsWait(event_group_1_id, FLAG_REQUEST_SCANER, osFlagsWaitAny, osWaitForever);
-
-		if (osEventFlagsGet(event_group_1_id) & SECOND_BUFFER_LINE_1)
-		{
-			pbuffer = BufferCOMP1;
-		}
-		else
-		{
-			pbuffer = BufferCOMP2;
-		}
+		osEventFlagsWait(event_group_1_id, FLAG_REQUEST_SCANER, osFlagsWaitAny | osFlagsNoClear, osWaitForever);
 
 	  	NumObjectsInCurrentLine = 0;
 	  	lastbit = 0;
 
-	  	for (j = 0; j < LINE_SIZE_EXP; j++)
+	  	for (j = 0; j < LINE_SIZE; j++)
 	  	{
-	  		if(pbuffer[j] & COMP_SR_C1VAL)
+	  		if(BufferCOMP2[j + LINE_DUMMY] & COMP_SR_C1VAL)
 	  		{
 	  			current_line[j] = 0;
 	  			lastbit = 0;
@@ -1321,6 +1336,7 @@ void StartScanerTask(void *argument)
 
 	  	// Мен�?ем буфер который надо заполн�?ть
 
+	  	osEventFlagsClear(event_group_1_id, FLAG_REQUEST_SCANER);
   }
 
 }
@@ -1522,6 +1538,45 @@ void ShowNumberOnLCD (uint32_t number, uint16_t num_areas)
 	osEventFlagsSet(event_group_1_id, FLAG_REQUEST_LCD_UPDATE);
 }
 
+/*
+ *
+ */
+
+/*
+void DMA1_Stream0_IRQHandler (void)
+{
+
+}
+*/
+
+/*
+ *
+ */
+
+void HAL_TIM_PWM_PulseFinishedCallback (TIM_HandleTypeDef * htim)
+{
+	if (htim->Instance == TIM2)
+	{
+		HAL_DMA_Start_IT (&hdma_tim17_ch1, (uint32_t)&COMP12->SR, (uint32_t)BufferCOMP1, LINE_SIZE + LINE_DUMMY);
+		HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
+	}
+}
+
+/*
+ *
+ */
+
+void DMA1_Stream0_Complete_Callback(DMA_HandleTypeDef *hdma_tim17_ch1)
+{
+	HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);
+
+	if (!(osEventFlagsGet(event_group_1_id) & FLAG_REQUEST_SCANER))
+	{
+		memcpy(BufferCOMP2, BufferCOMP1, sizeof(BufferCOMP2));
+		osEventFlagsSet(event_group_1_id, FLAG_REQUEST_SCANER);
+	}
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -1559,6 +1614,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+
+  if (htim->Instance == TIM2) {
+
+  	  }
 
   /* USER CODE END Callback 1 */
 }
