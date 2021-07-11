@@ -28,6 +28,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "event_groups.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -85,10 +87,7 @@ COMP_HandleTypeDef hcomp2;
 
 ETH_HandleTypeDef heth;
 
-TIM_HandleTypeDef htim3;
-TIM_HandleTypeDef htim17;
-DMA_HandleTypeDef hdma_tim17_ch1;
-
+UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart3;
 
 /* Definitions for defaultTask */
@@ -99,43 +98,6 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
-
-osEventFlagsId_t event_group_1_id = NULL;
-
-#define FLAG_REQUEST_LCD_UPDATE 0x00000001
-#define FLAG_REQUEST_SCANER		0x00000002
-#define SECOND_BUFFER_LINE_1	0x00000004
-#define ERROR_COUNT_OBJECTS		0x00000008
-
-osEventFlagsId_t event_group_2_id = NULL;
-
-osThreadId_t lcdTaskHandle;
-const osThreadAttr_t lcdTask_attributes = {
-  .name = "lcdTask",
-  .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t keyboardTaskHandle;
-const osThreadAttr_t keyboardTask_attributes = {
-  .name = "keyboardTask",
-  .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t  container_detectTaskHandle;
-const osThreadAttr_t container_detectTask_attributes = {
-  .name = "container_detectTask",
-  .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t scanerTaskHandle;
-const osThreadAttr_t scanerTask_attributes = {
-  .name = "scanerTask",
-  .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
 
 // common
 
@@ -180,22 +142,31 @@ uint32_t pice_period = 0;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
 static void MX_ETH_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_HS_USB_Init(void);
-static void MX_TIM3_Init(void);
 static void MX_COMP1_Init(void);
 static void MX_COMP2_Init(void);
-static void MX_TIM17_Init(void);
+static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
-void StartLCDTask(void *argument);
-void StartKeyboardTask(void *argument);
-void StartContainerDetectTask(void *argument);
-void StartScanerTask(void *argument);
+xTaskHandle xTaskHandle_Scanner = NULL,
+			xTaskHandle_Keyboard = NULL,
+			xTaskHandle_ContainerDetect,
+			xTaskHandle_LCD;
+
+void vTask_Scanner (void *pvParameters);
+void vTask_Kyeboard (void *pvParameters);
+void vTask_ContainerDetect (void *pvParameters);
+void vTask_LCD (void *pvParameters);
+
+
+void ComparatorsTuning(void);
+void TimersTuning(void);
+void SystemInterruptsTuning(void);
+void DMATuning(void);
 
 void Nybble(void);
 void WriteLCD(char i);
@@ -208,7 +179,9 @@ void ShowNumberOnLCD (uint32_t number, uint16_t num_areas);
 
 void Delay_us(uint32_t us);
 
-void DMA1_Stream0_Complete_Callback(DMA_HandleTypeDef *hdma_tim17_ch1);
+EventGroupHandle_t xEventGroup_StatusFlags;
+const EventBits_t Flag_Scanner_Busy =           0x00000001;
+//const EventBits_t Flag_LCD_Busy =           0x00000001;
 
 /* USER CODE END PFP */
 
@@ -249,15 +222,17 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_ETH_Init();
   MX_USART3_UART_Init();
   MX_USB_OTG_HS_USB_Init();
-  MX_TIM3_Init();
   MX_COMP1_Init();
   MX_COMP2_Init();
-  MX_TIM17_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  __HAL_RCC_TIM3_CLK_ENABLE();
+  __HAL_RCC_TIM17_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* USER CODE END 2 */
 
@@ -287,22 +262,19 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 
-  lcdTaskHandle = osThreadNew(StartLCDTask, NULL, &lcdTask_attributes);
-  keyboardTaskHandle = osThreadNew(StartKeyboardTask, NULL, &keyboardTask_attributes);
-  container_detectTaskHandle = osThreadNew(StartContainerDetectTask, NULL, &container_detectTask_attributes);
-  scanerTaskHandle = osThreadNew(StartScanerTask, NULL, &scanerTask_attributes);
-
-
-  HAL_DMA_RegisterCallback(&hdma_tim17_ch1, HAL_DMA_XFER_CPLT_CB_ID, DMA1_Stream0_Complete_Callback);
-  HAL_COMP_Start(&hcomp1);
-  HAL_TIM_PWM_Start_IT (&htim3, TIM_CHANNEL_1);
+  xTaskCreate(vTask_Scanner,(char*)"Task Scanner", 256, NULL, tskIDLE_PRIORITY + 3, &xTaskHandle_Scanner);
+  xTaskCreate(vTask_Kyeboard,(char*)"Task Keyboard", 256, NULL, tskIDLE_PRIORITY + 3, &xTaskHandle_Keyboard);
+  xTaskCreate(vTask_ContainerDetect,(char*)"Task Container Detect", 256, NULL, tskIDLE_PRIORITY + 3, &xTaskHandle_ContainerDetect);
+  xTaskCreate(vTask_LCD,(char*)"Task LCD", 256, NULL, tskIDLE_PRIORITY + 3, &xTaskHandle_LCD);
 
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
 
-  event_group_1_id = osEventFlagsNew(NULL);
+  xEventGroup_StatusFlags = xEventGroupCreate();
+
+  TIM3->CR1 |= TIM_CR1_CEN;
 
   /* USER CODE END RTOS_EVENTS */
 
@@ -494,140 +466,52 @@ static void MX_ETH_Init(void)
 }
 
 /**
-  * @brief TIM3 Initialization Function
+  * @brief USART1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_TIM3_Init(void)
+static void MX_USART1_UART_Init(void)
 {
 
-  /* USER CODE BEGIN TIM3_Init 0 */
+  /* USER CODE BEGIN USART1_Init 0 */
 
-  /* USER CODE END TIM3_Init 0 */
+  /* USER CODE END USART1_Init 0 */
 
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
+  /* USER CODE BEGIN USART1_Init 1 */
 
-  /* USER CODE BEGIN TIM3_Init 1 */
-
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 275;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 400;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_RXOVERRUNDISABLE_INIT|UART_ADVFEATURE_DMADISABLEONERROR_INIT;
+  huart1.AdvancedInit.OverrunDisable = UART_ADVFEATURE_OVERRUN_DISABLE;
+  huart1.AdvancedInit.DMADisableonRxError = UART_ADVFEATURE_DMA_DISABLEONRXERROR;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
   {
     Error_Handler();
   }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  if (HAL_UARTEx_DisableFifoMode(&huart1) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 50;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
+  /* USER CODE BEGIN USART1_Init 2 */
 
-  /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
-
-}
-
-/**
-  * @brief TIM17 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM17_Init(void)
-{
-
-  /* USER CODE BEGIN TIM17_Init 0 */
-
-/*
-    TIM17->CNT = 0;
-    TIM17->PSC = 0;                 // divisor PSC+1, Fsysclk = 72 Mhz => Fck = 72/(0+1) = 72 Mhz
-    TIM17->ARR = (CurrentFrequencyFrame*2)-1;;              // 22*(1/72 MHz) = 305.55 ns period
-    TIM17->CCR1 =  CurrentFrequencyFrame;               // 152.7 ns pulse 50 % PWM
-    TIM17->CCMR1 |= TIM_CCMR1_OC1M_1 |TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1FE | TIM_CCMR1_OC1PE;; //OC1 is PWM mode1
-    TIM17->CR1 |= TIM_CR1_ARPE;     //
-    TIM17->CCER |= TIM_CCER_CC1E;   // OC1 signal is output on the corresponding output pin depending on MOE, OSSI, OSSR, OIS1, OIS1N and CC1NE bits
-    TIM17->BDTR |= TIM_BDTR_MOE;    // main output enable
-    TIM17->DIER |= TIM_DIER_UDE;    // Update DMA request enable
-	*/
-
-  /* USER CODE END TIM17_Init 0 */
-
-  TIM_OC_InitTypeDef sConfigOC = {0};
-  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
-
-  /* USER CODE BEGIN TIM17_Init 1 */
-
-  /* USER CODE END TIM17_Init 1 */
-  htim17.Instance = TIM17;
-  htim17.Init.Prescaler = 0;
-  htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim17.Init.Period = 110;
-  htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim17.Init.RepetitionCounter = 0;
-  htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim17) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Init(&htim17) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 55;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
-  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
-  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_PWM_ConfigChannel(&htim17, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
-  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
-  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-  sBreakDeadTimeConfig.DeadTime = 0;
-  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
-  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
-  sBreakDeadTimeConfig.BreakFilter = 0;
-  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
-  if (HAL_TIMEx_ConfigBreakDeadTime(&htim17, &sBreakDeadTimeConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM17_Init 2 */
-
-//  TIM17->DIER |= TIM_DIER_UDE;    // Update DMA request enable
-
-
-
-  /* USER CODE END TIM17_Init 2 */
-  HAL_TIM_MspPostInit(&htim17);
+  /* USER CODE END USART1_Init 2 */
 
 }
 
@@ -701,22 +585,6 @@ static void MX_USB_OTG_HS_USB_Init(void)
 }
 
 /**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -779,6 +647,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : TIM3_CH1_LINE_ST_Pin */
+  GPIO_InitStruct.Pin = TIM3_CH1_LINE_ST_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF2_TIM3;
+  HAL_GPIO_Init(TIM3_CH1_LINE_ST_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : LED_GREEN_Pin LIGHT_CONTROL_Pin LED_RED_Pin */
   GPIO_InitStruct.Pin = LED_GREEN_Pin|LIGHT_CONTROL_Pin|LED_RED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -797,14 +673,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF4_USART1;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : USB_FS_PWR_EN_Pin ROW0_Pin ROW1_Pin ROW2_Pin
                            ROW3_Pin */
@@ -849,13 +717,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6;
+  /*Configure GPIO pin : TIM17_CH1_LINE_CLK_Pin */
+  GPIO_InitStruct.Pin = TIM17_CH1_LINE_CLK_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  GPIO_InitStruct.Alternate = GPIO_AF1_TIM17;
+  HAL_GPIO_Init(TIM17_CH1_LINE_CLK_GPIO_Port, &GPIO_InitStruct);
 
 }
 
@@ -885,7 +753,7 @@ void DMATuning(void)
   * @param  argument: Not used
   * @retval None
   */
-void StartLCDTask(void *argument)
+void vTask_LCD(void *pvParameters)
 {
   /* Infinite loop */
 
@@ -924,7 +792,7 @@ void StartLCDTask(void *argument)
   * @param  argument: Not used
   * @retval None
   */
-void StartKeyboardTask(void *argument)
+void vTask_Kyeboard(void *pvParameters)
 {
 	uint8_t i = 0;
 	uint32_t key_current_state = 0, key_previous_state = 0, key_current_status = 0, key_previous_status = 0, key_event_status = 0;
@@ -1133,7 +1001,7 @@ void StartKeyboardTask(void *argument)
   * @param  argument: Not used
   * @retval None
   */
-void StartContainerDetectTask(void *argument)
+void vTask_ContainerDetect(void *pvParameters)
 {
 	static uint8_t previous_state = 1, event_state = 0;
 
@@ -1170,7 +1038,7 @@ void StartContainerDetectTask(void *argument)
   * @param  argument: Not used
   * @retval None
   */
-void StartScanerTask(void *argument)
+void vTask_Scanner(void *pvParameters)
 {
 	uint32_t j, p, i;
 	uint8_t current_line[LINE_SIZE], NumObjectsInCurrentLine = 0;
@@ -1181,7 +1049,9 @@ void StartScanerTask(void *argument)
 	/* Infinite loop */
 	for(;;)
 	{
-		osEventFlagsWait(event_group_1_id, FLAG_REQUEST_SCANER, osFlagsWaitAny | osFlagsNoClear, osWaitForever);
+		xEventGroupWaitBits( xEventGroup_StatusFlags, Flag_Scanner_Busy, pdFALSE, pdFALSE, portMAX_DELAY );
+
+		memcpy(BufferCOMP2, BufferCOMP1, sizeof(BufferCOMP2));
 
 	  	NumObjectsInCurrentLine = 0;
 	  	lastbit = 0;
@@ -1316,7 +1186,7 @@ void StartScanerTask(void *argument)
 	  			}
 	  			else
 	  			{
-	  				osEventFlagsSet(event_group_1_id, ERROR_COUNT_OBJECTS);
+//  				osEventFlagsSet(event_group_1_id, ERROR_COUNT_OBJECTS);
 	  			}
 	  		}
 	  	}
@@ -1336,7 +1206,7 @@ void StartScanerTask(void *argument)
 
 	  	// Мен�?ем буфер который надо заполн�?ть
 
-	  	osEventFlagsClear(event_group_1_id, FLAG_REQUEST_SCANER);
+	  	xEventGroupClearBits( xEventGroup_StatusFlags, Flag_Scanner_Busy);
   }
 
 }
@@ -1358,8 +1228,6 @@ void Clear_Counter (void)
 	{
 		pices_time[p] = 0;
 	}
-
-	osEventFlagsSet(event_group_1_id, FLAG_REQUEST_LCD_UPDATE);
 }
 
 /*
@@ -1480,8 +1348,6 @@ void ShowTextOnLCD (const char *text)
 	PositionLCD[5] = (uint8_t)text[5];
 	PositionLCD[6] = (uint8_t)text[6];
 	PositionLCD[7] = (uint8_t)text[7];
-
-	osEventFlagsSet(event_group_1_id, FLAG_REQUEST_LCD_UPDATE);
 }
 
 void ShowNumberOnLCD (uint32_t number, uint16_t num_areas)
@@ -1534,8 +1400,6 @@ void ShowNumberOnLCD (uint32_t number, uint16_t num_areas)
 			}
 		}
 	}
-
-	osEventFlagsSet(event_group_1_id, FLAG_REQUEST_LCD_UPDATE);
 }
 
 /*
@@ -1543,38 +1407,115 @@ void ShowNumberOnLCD (uint32_t number, uint16_t num_areas)
  */
 
 /*
-void DMA1_Stream0_IRQHandler (void)
+ *
+ */
+
+void TimersTuning(void)
 {
+    TIM3->PSC = 80;
+    TIM3->ARR = 400;
+    TIM3->CCR1 = 20;
+    TIM3->CCMR1 = TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1FE;
+    TIM3->CCER = TIM_CCER_CC1E;
+    TIM3->DIER = TIM_DIER_CC1IE;
+
+    TIM17->PSC = 0;
+    TIM17->ARR = 160;
+    TIM17->CCR1 = 40;
+    TIM17->CCMR1 = TIM_CCMR1_OC1M_0 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1FE;
+    TIM17->CCER = TIM_CCER_CC1E;
+    TIM17->BDTR = TIM_BDTR_MOE;
+    TIM17->DIER = TIM_DIER_CC1DE;
 
 }
-*/
 
 /*
  *
  */
 
-void HAL_TIM_PWM_PulseFinishedCallback (TIM_HandleTypeDef * htim)
+void ComparatorsTuning(void)
 {
-	if (htim->Instance == TIM2)
-	{
-		HAL_DMA_Start_IT (&hdma_tim17_ch1, (uint32_t)&COMP12->SR, (uint32_t)BufferCOMP1, LINE_SIZE + LINE_DUMMY);
-		HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
-	}
+    COMP1->CFGR = COMP_CFGRx_EN | COMP_CFGRx_HYST_1 | COMP_CFGRx_INMSEL_1 | COMP_CFGRx_INMSEL_2 | COMP_CFGRx_INPSEL; //COMP1 enable , HighSpeed, Medium hysteresis, PB2 +, P1 -
 }
 
 /*
  *
  */
 
-void DMA1_Stream0_Complete_Callback(DMA_HandleTypeDef *hdma_tim17_ch1)
+void SystemInterruptsTuning(void)
 {
-	HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);
 
-	if (!(osEventFlagsGet(event_group_1_id) & FLAG_REQUEST_SCANER))
-	{
-		memcpy(BufferCOMP2, BufferCOMP1, sizeof(BufferCOMP2));
-		osEventFlagsSet(event_group_1_id, FLAG_REQUEST_SCANER);
-	}
+
+    NVIC_EnableIRQ(TIM3_IRQn);
+    NVIC_SetPriority(TIM3_IRQn, 0);
+
+    /*
+    EXTI->IMR |= EXTI_IMR_MR0;
+    //EXTI->EMR |= EXTI_EMR_MR0;
+    NVIC_SetPriority(EXTI0_IRQn, 1);
+    NVIC_EnableIRQ(EXTI0_IRQn);
+    */
+
+    NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+    NVIC_SetPriority(DMA1_Stream0_IRQn, 10);
+}
+
+/*
+ *
+ */
+
+void DMATuning(void)
+{
+    // for change addresses DMA chanal must disable !!!
+
+	DMA1_Stream0->CR &= ~DMA_SxCR_EN;
+	DMA1_Stream0->PAR = (uint32_t)&COMP12->SR;
+	DMA1_Stream0->M0AR = (uint32_t) BufferCOMP1;
+	DMA1_Stream0->NDTR = 1536;
+	DMA1_Stream0->CR = DMA_SxCR_PSIZE_1 | DMA_SxCR_MSIZE_1 | DMA_SxCR_MINC | DMA_SxCR_TCIE | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
+	DMAMUX1_Channel0->CCR = ( 111 << DMAMUX_CxCR_DMAREQ_ID_Pos);
+	DMA1->LIFCR = 0xffffffff;
+	DMA1->HIFCR = 0xffffffff;
+	DMA1_Stream0->CR |= DMA_SxCR_EN;
+}
+
+/*
+ *
+ */
+
+void TIM3_IRQHandler(void)
+{
+    TIM3->SR &=~ TIM_SR_CC1IF;
+
+    DMATuning();
+    TIM17->CR1 |= TIM_CR1_CEN;
+}
+
+/*
+ *
+ */
+
+void DMA1_Channel1_IRQHandler(void)
+{
+    BaseType_t xHigherPriorityTaskWoken, xResult;
+
+    TIM17->EGR |=TIM_EGR_UG;
+    TIM17->CR1 &= ~TIM_CR1_CEN;
+
+    DMA1->LIFCR = 0xffffffff;
+    DMA1->HIFCR = 0xffffffff;
+
+    xHigherPriorityTaskWoken = pdFALSE;
+
+    if (!(xEventGroupGetBitsFromISR(xEventGroup_StatusFlags) & Flag_Scanner_Busy))
+    {
+		xResult = xEventGroupSetBitsFromISR(xEventGroup_StatusFlags, Flag_Scanner_Busy, &xHigherPriorityTaskWoken);
+
+		if( xResult != pdFAIL )
+		{
+			portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+		}
+    }
 }
 
 /* USER CODE END 4 */
@@ -1614,10 +1555,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
-  if (htim->Instance == TIM2) {
-
-  	  }
 
   /* USER CODE END Callback 1 */
 }

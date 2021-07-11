@@ -65,8 +65,8 @@ all: main-build
 main-build: line_V3.elf secondary-outputs
 
 # Tool invocations
-line_V3.elf: $(OBJS) $(USER_OBJS) D:\Progect_line\soft\line_V3\STM32H723ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "line_V3.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"D:\Progect_line\soft\line_V3\STM32H723ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="line_V3.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+line_V3.elf: $(OBJS) $(USER_OBJS) C:\progects\progect_OPC\soft\progect_line_V3\STM32H723ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "line_V3.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\progects\progect_OPC\soft\progect_line_V3\STM32H723ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="line_V3.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
