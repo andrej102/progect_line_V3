@@ -166,6 +166,11 @@ line_object_t objects_last_line[LINE_SIZE / 2];
 
 uint8_t objects_area_last_line[LINE_SIZE];
 
+uint8_t current_line[LINE_SIZE], NumObjectsInCurrentLine = 0;
+uint8_t lastbit = 0;
+line_object_t objects_current_line[LINE_SIZE / 2];
+line_object_t *p_objects_current_line[LINE_SIZE /2];
+
 uint16_t Objects_area[1000];
 uint32_t num_show_object_area = 0;
 uint32_t max_area = 0;
@@ -292,7 +297,9 @@ int main(void)
   container_detectTaskHandle = osThreadNew(StartContainerDetectTask, NULL, &container_detectTask_attributes);
   scanerTaskHandle = osThreadNew(StartScanerTask, NULL, &scanerTask_attributes);
 
+  event_group_1_id = osEventFlagsNew(NULL);
 
+  __HAL_TIM_ENABLE_DMA(&htim17,TIM_DMA_ID_CC1);
   HAL_DMA_RegisterCallback(&hdma_tim17_ch1, HAL_DMA_XFER_CPLT_CB_ID, DMA1_Stream0_Complete_Callback);
   HAL_COMP_Start(&hcomp1);
   HAL_TIM_PWM_Start_IT (&htim3, TIM_CHANNEL_1);
@@ -302,7 +309,8 @@ int main(void)
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
 
-  event_group_1_id = osEventFlagsNew(NULL);
+
+
 
   /* USER CODE END RTOS_EVENTS */
 
@@ -1173,10 +1181,6 @@ void StartContainerDetectTask(void *argument)
 void StartScanerTask(void *argument)
 {
 	uint32_t j, p, i;
-	uint8_t current_line[LINE_SIZE], NumObjectsInCurrentLine = 0;
-	uint8_t lastbit = 0;
-	line_object_t objects_current_line[LINE_SIZE / 2];
-	line_object_t *p_objects_current_line[LINE_SIZE /2];
 
 	/* Infinite loop */
 	for(;;)
@@ -1542,6 +1546,80 @@ void ShowNumberOnLCD (uint32_t number, uint16_t num_areas)
  *
  */
 
+void TimersTuning(void)
+{
+        // timer for line polling
+
+    TIM17->CNT = 0;
+    TIM17->PSC = 0;                 // divisor PSC+1, Fsysclk = 72 Mhz => Fck = 72/(0+1) = 72 Mhz
+    TIM17->ARR = (CurrentFrequencyFrame*2)-1;;              // 22*(1/72 MHz) = 305.55 ns period
+    TIM17->CCR1 =  CurrentFrequencyFrame;               // 152.7 ns pulse 50 % PWM
+    TIM17->CCMR1 |= TIM_CCMR1_OC1M_1 |TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1FE | TIM_CCMR1_OC1PE;; //OC1 is PWM mode1
+    TIM17->CR1 |= TIM_CR1_ARPE;     //
+    TIM17->CCER |= TIM_CCER_CC1E;   // OC1 signal is output on the corresponding output pin depending on MOE, OSSI, OSSR, OIS1, OIS1N and CC1NE bits
+    TIM17->BDTR |= TIM_BDTR_MOE;    // main output enable
+    TIM17->DIER |= TIM_DIER_UDE;    // Update DMA request enable
+
+        // timer general time count 1 ms period
+
+    TIM2->PSC = 71;             // divisor PSC+1, Fsysclk = 72 Mhz => Fck = 72/(71+1) = 1 Mhz
+    TIM2->ARR = 1000;           // 1 ms period
+    TIM2->DIER |= TIM_DIER_UIE; // enable TIM2 update interrupt
+
+        // timer for LCD pause 300 nS pause for E signal
+
+    TIM3->PSC = 71;                 // divisor PSC+1, Fck = 72/(71+1) = 1 Mhz
+    //TIM3->CR1 |= TIM_CR1_CEN; // start TIM3
+}
+
+/*
+ *
+ */
+
+void ComparatorsTuning(void)
+{
+	RCC->APB4ENR |= RCC_APB4ENR_COMP12EN;
+
+	COMP1->CFGR = COMP_CFGRx_HYST_1 | COMP_CFGRx_INMSEL_1 | COMP_CFGRx_INMSEL_2 | COMP_CFGRx_EN; // COMP1: PB1 - minus, HighSpeed, Medium hysteresis, enable
+}
+
+void DMATuning(void)
+{
+    // for change addresses DMA chanal must disable !!!
+
+	RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;   // DMA2 clock enable;
+
+    DMA1_Stream0->CR &=~DMA_SxCR_EN;
+    DMA1_Stream0->PAR =(uint32_t)&COMP12->SR;
+    DMA1_Stream0->M0AR =(uint32_t)&BufferCOMP1[0];
+    DMA1_Stream0->M1AR =(uint32_t)&BufferCOMP2[0];
+    DMA1_Stream0->NDTR = /*LINE_SIZE + LINE_DUMMY*/10;
+    DMA1_Stream0->CR = DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 | DMA_SxCR_MINC_1 | DMA_SxCR_TCIE | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
+    DMAMUX1_Channel0->CCR = ( 111 << DMAMUX_CxCR_DMAREQ_ID_Pos); // TIM17_CH1 request
+	DMA1_Stream0->CR |= DMA_SxCR_EN;
+
+}
+
+//********************************
+
+void SystemInterruptsTuning(void)
+{
+
+
+    NVIC_EnableIRQ(TIM3_IRQn);
+    NVIC_SetPriority(TIM3_IRQn, 10);
+
+    /*
+    EXTI->IMR |= EXTI_IMR_MR0;
+    //EXTI->EMR |= EXTI_EMR_MR0;
+    NVIC_SetPriority(EXTI0_IRQn, 1);
+    NVIC_EnableIRQ(EXTI0_IRQn);
+     */
+
+    NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+    NVIC_SetPriority(DMA1_Stream0_IRQn, 10);
+}
+
 /*
 void DMA1_Stream0_IRQHandler (void)
 {
@@ -1555,9 +1633,12 @@ void DMA1_Stream0_IRQHandler (void)
 
 void HAL_TIM_PWM_PulseFinishedCallback (TIM_HandleTypeDef * htim)
 {
-	if (htim->Instance == TIM2)
+	if (htim->Instance == TIM3)
 	{
-		HAL_DMA_Start_IT (&hdma_tim17_ch1, (uint32_t)&COMP12->SR, (uint32_t)BufferCOMP1, LINE_SIZE + LINE_DUMMY);
+		//DMA_REQUEST_TIM17_CH1
+		//HAL_DMA_Abort_IT (htim17.hdma[TIM_DMA_ID_CC1]);
+		//__HAL_TIM_ENABLE_DMA(&htim17,TIM_DMA_ID_CC1);
+		HAL_DMA_Start_IT (&hdma_tim17_ch1/*htim17.hdma[TIM_DMA_ID_CC1]*/, (uint32_t)&COMP12->SR, (uint32_t)BufferCOMP1, /*LINE_SIZE + LINE_DUMMY*/10);
 		HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
 	}
 }
@@ -1566,7 +1647,7 @@ void HAL_TIM_PWM_PulseFinishedCallback (TIM_HandleTypeDef * htim)
  *
  */
 
-void DMA1_Stream0_Complete_Callback(DMA_HandleTypeDef *hdma_tim17_ch1)
+void DMA1_Stream0_Complete_Callback(DMA_HandleTypeDef *hdma)
 {
 	HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);
 
